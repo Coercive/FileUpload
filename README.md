@@ -11,6 +11,8 @@ composer require coercive/fileupload
 
 Usage
 -----
+
+**IMAGE**
 ```php
 use Coercive\Utility\FileUpload;
 
@@ -31,6 +33,7 @@ if($oImageUpload->getErrors()) { exit; }
 $sMyFile = $oImageUpload->getDestPath();
 ```
 
+**FILE**
 ```php
 use Coercive\Utility\FileUpload;
 
@@ -48,6 +51,7 @@ $oFileUpload->save('/example/path/' . $sFileName . '.pdf');
 if($oFileUpload->getErrors()) { exit; }
 ```
 
+**HELP**
 ```php
 use Coercive\Utility\FileUpload;
 
