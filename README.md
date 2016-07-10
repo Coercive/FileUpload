@@ -84,7 +84,7 @@ $oFileUpload
 ```
 
 **OPTIONS**
-```
+```php
 # FileUpload / ImageUpload : Constructor Options
 array(
     FileUpload::OPTIONS_NAME => '', # (string) input file name
