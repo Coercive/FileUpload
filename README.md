@@ -82,3 +82,14 @@ $oFileUpload
     ->deleteTempFile();
 
 ```
+
+**OPTIONS**
+```
+# FileUpload / ImageUpload : Constructor Options
+array(
+    FileUpload::OPTIONS_NAME => '', # (string) input file name
+    FileUpload::OPTIONS_ALLOWED_EXTENSIONS => [], # (array) of strings example : ['jpg', 'gif']
+    FileUpload::OPTIONS_DISALLOWED_EXTENSIONS => [], # (array) of strings
+    FileUpload::OPTIONS_MAX_SIZE => self::DEFAULT_MAX_SIZE, # (int) default : 10485760 (10 Mo)
+);
+```
