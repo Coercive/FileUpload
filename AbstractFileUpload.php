@@ -7,7 +7,7 @@ use \Exception;
  * AbstractFileUpload
  * PHP Version 	5
  *
- * @version		1
+ * @version		1.1
  * @package 	Coercive\Utility\FileUpload
  * @link		@link https://github.com/Coercive/FileUpload
  *
@@ -49,12 +49,29 @@ abstract class AbstractFileUpload {
 
 	# SYSTEM
 	const DEFAULT_MAX_SIZE = 10485760; # 10Mo
+	const DEFAULT_CHMOD_DIR = 0644;
+	const DEFAULT_CHMOD_FILE = 0644;
+
+	# HELP CHMOD
+	const CHMOD_FULL = 0777;
+	const CHMOD_OWNER_FULL = 0700;
+	const CHMOD_OWNER_READ = 0400;
+	const CHMOD_OWNER_WRITE = 0200;
+	const CHMOD_OWNER_EXEC = 0100;
+	const CHMOD_OWNER_FULL_GROUP_READ_EXEC = 0750;
+	const CHMOD_OWNER_FULL_GROUP_READ_EXEC_GLOBAL_READ = 0754;
+	const CHMOD_OWNER_FULL_GROUP_READ_EXEC_GLOBAL_READ_EXEC = 0755;
+	const CHMOD_OWNER_READ_WRITE = 0600;
+	const CHMOD_OWNER_READ_WRITE_GROUP_READ = 0640;
+	const CHMOD_OWNER_READ_WRITE_GROUP_READ_GLOBAL_READ = 0644;
 
 	# PROPERTIES
 	const OPTIONS_NAME 					= 'name';
 	const OPTIONS_ALLOWED_EXTENSIONS 	= 'allowed_extensions';
 	const OPTIONS_DISALLOWED_EXTENSIONS = 'disallowed_extensions';
 	const OPTIONS_MAX_SIZE 				= 'max-size';
+	const OPTIONS_CHMOD_DIR 			= 'chmod-dir';
+	const OPTIONS_CHMOD_FILE			= 'chmod-file';
 
 	/** @var array OPTIONS */
 	private $_aOptions = [];
@@ -86,18 +103,22 @@ abstract class AbstractFileUpload {
 	/** @var string DEST PATH */
 	private $_sDestPath = '';
 
+	/** @var int CHMOD DIR */
+	private $_iChmodDir;
+
+	/** @var int CHMOD FILE */
+	private $_iChmodFile;
+
 	/**
 	 * EXCEPTION
 	 *
 	 * @param string $sMessage
 	 * @param int $sLine
 	 * @param string $sMethod
-	 * @param string $sClass
-	 * @param string $sNamespace
 	 * @throws Exception
 	 */
-	static protected function _exception($sMessage, $sLine = __LINE__, $sMethod = __METHOD__, $sClass = __CLASS__, $sNamespace = __NAMESPACE__) {
-		throw new Exception("$sMessage \nNameSpace : $sNamespace \nClass : $sClass \nMethod :  $sMethod \nLine : $sLine");
+	static protected function _exception($sMessage, $sLine = __LINE__, $sMethod = __METHOD__) {
+		throw new Exception("$sMessage \nMethod :  $sMethod \nLine : $sLine");
 	}
 
 	/**
@@ -194,9 +215,13 @@ abstract class AbstractFileUpload {
 			self::OPTIONS_ALLOWED_EXTENSIONS => [],
 			self::OPTIONS_DISALLOWED_EXTENSIONS => [],
 			self::OPTIONS_MAX_SIZE => self::DEFAULT_MAX_SIZE,
+			self::OPTIONS_CHMOD_DIR => self::DEFAULT_CHMOD_DIR,
+			self::OPTIONS_CHMOD_FILE => self::DEFAULT_CHMOD_FILE,
 		], $aOptions);
 
 		# PREPARE
+		$this->_iChmodDir = (int) $this->_aOptions[self::OPTIONS_CHMOD_DIR];
+		$this->_iChmodFile = (int) $this->_aOptions[self::OPTIONS_CHMOD_FILE];
 		$this->_sInputName 	= filter_var($this->_aOptions[self::OPTIONS_NAME], FILTER_SANITIZE_SPECIAL_CHARS);
 		$this->_iMaxFileSize = filter_var($this->_aOptions[self::OPTIONS_MAX_SIZE], FILTER_VALIDATE_INT);
 		$this->_aAllowedExtensions = filter_var_array($this->_aOptions[self::OPTIONS_ALLOWED_EXTENSIONS], FILTER_SANITIZE_FULL_SPECIAL_CHARS);
@@ -205,6 +230,44 @@ abstract class AbstractFileUpload {
 		$this->_checkExtension();
 		$this->_checkMaxSize();
 
+	}
+
+	/**
+	 * MAKE DIRECTORY
+	 *
+	 * @param string $sPath
+	 * @return bool
+	 */
+	protected function makeDir($sPath) {
+
+		# DON'T PROCESS IF ERROR : SKIP
+		if($this->getErrors()) { return false; }
+
+		# HANDLE CRASH
+		try {
+			return is_dir($sPath) || mkdir($sPath, octdec($this->_iChmodDir), true);
+		} catch (Exception $e) {
+			return false;
+		}
+	}
+
+	/**
+	 * CHMOD FILE
+	 *
+	 * @param string $sFilePath
+	 * @return bool
+	 */
+	protected function chmodFile($sFilePath) {
+
+		# DON'T PROCESS IF ERROR : SKIP
+		if($this->getErrors() || !is_file($sFilePath)) { return false; }
+
+		# HANDLE CRASH
+		try {
+			return chmod($sFilePath, octdec($this->_iChmodFile));
+		} catch (Exception $e) {
+			return false;
+		}
 	}
 
 	/**
@@ -223,18 +286,20 @@ abstract class AbstractFileUpload {
 
 		# NOT DIRECTORY : create
 		if(!preg_match('`^(?P<path>.*)\/.*$`', $sDestPath, $aMatches)) { $this->_setError('Destpath match error'); return false; }
-		if(!is_dir($aMatches['path'])) {
-			if(!mkdir($aMatches['path'], 0755, true)) {
-				$this->_setError('Failure when creating directory'); return false;
-			}
-		}
+		if(!$this->makeDir($aMatches['path'])) { $this->_setError('Failure when creating directory'); return false; }
 
 		# NOT PERMISSION TO WRITTE
 		if (!is_writable($aMatches['path'])) { $this->_setError('Upload directory is not writable'); return false; }
 
 		# MOVE
 		$bStatus = move_uploaded_file($this->_sFilePath, $sDestPath);
-		if(!$bStatus) { $this->_setError('Error when moving the file'); return false;	}
+		if(!$bStatus) { $this->_setError('Error when moving the file'); return false; }
+
+		# CHMOD
+		$bChmod = $this->chmodFile($sDestPath);
+		if(!$bChmod) { $this->_setError('Error when chmod the file'); return false;	}
+
+		# SET DESTPATH
 		$this->_sDestPath = $sDestPath;
 		return true;
 	}
@@ -256,18 +321,20 @@ abstract class AbstractFileUpload {
 
 		# NOT DIRECTORY : create
 		if(!preg_match('`^(?P<path>.*)\/.*$`', $sDestPath, $aMatches)) { $this->_setError('Destpath match error'); return false; }
-		if(!is_dir($aMatches['path'])) {
-			if(!mkdir($aMatches['path'], 0755, true)) {
-				$this->_setError('Failure when creating directory'); return false;
-			}
-		}
+		if(!$this->makeDir($aMatches['path'])) { $this->_setError('Failure when creating directory'); return false; }
 
 		# NOT PERMISSION TO WRITTE
 		if (!is_writable($aMatches['path'])) { $this->_setError('Dest directory is not writable'); return false; }
 
 		# MOVE
 		$bStatus = copy($sSrcPath, $sDestPath);
-		if(!$bStatus) { $this->_setError('Error when moving the file'); return false;	}
+		if(!$bStatus) { $this->_setError('Error when moving the file'); return false; }
+
+		# CHMOD
+		$bChmod = $this->chmodFile($sDestPath);
+		if(!$bChmod) { $this->_setError('Error when chmod the file'); return false;	}
+
+		# SET DESTPATH
 		$this->_sDestPath = $sDestPath;
 		return true;
 	}
@@ -373,6 +440,24 @@ abstract class AbstractFileUpload {
 	 */
 	public function getDestPath() {
 		return $this->_sDestPath;
+	}
+
+	/**
+	 * GET CHMOD DIR
+	 *
+	 * @return int
+	 */
+	public function getChmodDir() {
+		return (int) $this->_iChmodDir;
+	}
+
+	/**
+	 * GET CHMOD FILE
+	 *
+	 * @return int
+	 */
+	public function getChmodFile() {
+		return (int) $this->_iChmodDir;
 	}
 
 }
