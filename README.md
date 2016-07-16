@@ -127,5 +127,7 @@ array(
     FileUpload::OPTIONS_ALLOWED_EXTENSIONS => [], # (array) of strings example : ['jpg', 'gif']
     FileUpload::OPTIONS_DISALLOWED_EXTENSIONS => [], # (array) of strings
     FileUpload::OPTIONS_MAX_SIZE => self::DEFAULT_MAX_SIZE, # (int) default : 10485760 (10 Mo)
+    FileUpload::OPTIONS_CHMOD_DIR => self::DEFAULT_CHMOD_DIR, # (int) default : 0644
+    FileUpload::OPTIONS_CHMOD_FILE => self::DEFAULT_CHMOD_FILE # (int) default : 0644
 );
 ```
